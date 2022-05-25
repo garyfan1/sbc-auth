@@ -19,12 +19,12 @@ from random import randint
 import stan
 
 
-async def helper_add_event_to_queue(stan_client: stan.aio.client.Client,
-                                    subject: str,
-                                    nr_number: str,
-                                    new_state: str,
-                                    old_state: str):
-    """Add event to the Queue."""
+async def helper_add_names_event_to_queue(stan_client: stan.aio.client.Client,
+                                          subject: str,
+                                          nr_number: str,
+                                          new_state: str,
+                                          old_state: str):
+    """Add names event to the Queue."""
     payload = {
         'specversion': '1.0.1',
         'type': 'bc.registry.names.events',
@@ -49,3 +49,31 @@ async def helper_add_event_to_queue(stan_client: stan.aio.client.Client,
 def get_random_number():
     """Generate a random and return."""
     return randint(100000000, 999999999)
+
+
+async def helper_add_business_dissolution_to_queue(stan_client: stan.aio.client.Client,
+                                                   subject: str,
+                                                   business_identifier: str,
+                                                   filing_id: str):
+    """Add dissolution event to Queue."""
+    payload = {
+        'specversion': '1.x-wip',
+        'type': 'bc.registry.business.dissolution',
+        'source': f'/business/{business_identifier}/filing/{filing_id}',
+        'id': 1234,
+        'time': '',
+        'datacontenttype': 'application/json',
+        'identifier': business_identifier,
+        'data': {
+            'filing': {
+                'header': {
+                            'filingId': filing_id,
+                            'effectiveDate': str(datetime.now())
+                            },
+                'business': {'identifier': business_identifier},
+                'legalFilings': ['dissolution']
+            }
+        }
+    }
+    await stan_client.publish(subject=subject,
+                              payload=json.dumps(payload).encode('utf-8'))

@@ -44,7 +44,7 @@ from flask import Flask  # pylint: disable=wrong-import-order
 from business_events_listener import config
 
 
-async def cb_nr_subscription_handler(msg: nats.aio.client.Msg):
+async def cb_subscription_handler(msg: nats.aio.client.Msg):
     """Use Callback to process Queue Msg objects."""
     try:
         logger.info('Received raw message seq:%s, data=  %s', msg.sequence, msg.data.decode())
@@ -64,8 +64,56 @@ async def process_event(event_message, flask_app):
     with flask_app.app_context():
         message_type = event_message.get('type', None)
 
-        if message_type == 'bc.registry.names.events':
+        if message_type in ('bc.registry.business.dissolution',
+                            'bc.registry.business.correction'):
+            await process_business_events(message_type, event_message)
+        elif message_type == 'bc.registry.names.events':
             await process_name_events(event_message)
+
+
+async def process_business_events(message_type: str, event_message: Dict[str, any]):
+    """Process business events.
+
+    1. Check if entity exists and dissolution has occured.
+       - Update the status to HISTORICAL.
+    2. **Unimplemented** Check if entity exists and dissolution has reversed (via correction).
+       - Update the status to ACTIVE.
+
+    Args:
+        event_message (object): cloud event message, sample below.
+            {
+                'specversion': '1.x-wip',
+                'type': 'bc.registry.business.' + filing.filing_type,
+                'source': '/business/{business.identifier}/filing/{filing.id},
+                'id': id,
+                'time': '',
+                'datacontenttype': 'application/json',
+                'identifier': business.identifier,
+                'data': {
+                    'filing': {
+                        'header': {
+                                   'filingId': filing.id,
+                                   'effectiveDate': filing.effective_date
+                                  },
+                        'business': {'identifier': business.identifier},
+                        'legalFilings': get_filing_types(filing.filing_json)
+                    }
+                }
+            }
+    """
+    logger.debug('>>>>>>>process_business_events>>>>>')
+    entity_identifier = event_message.get('identifier')
+    entity = EntityModel.find_by_business_identifier(entity_identifier)
+    if entity is None:
+        logger.error('process_business_events - Couldn''t find Entity : '
+                     '%s to update entity.status.', entity_identifier)
+    elif message_type == 'bc.registry.business.dissolution':
+        logger.info('Setting Entity : %s status to HISTORICAL', entity_identifier)
+        entity.status = 'HISTORICAL'
+        entity.save()
+    elif message_type == 'bc.registry.business.correction':
+        pass  # TODO unimplemented currently.
+    logger.debug('<<<<<<<process_business_events<<<<<<<<<<')
 
 
 async def process_name_events(event_message: Dict[str, any]):
