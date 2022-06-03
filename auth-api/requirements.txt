@@ -40,6 +40,7 @@ marshmallow==3.16.0
 minio==7.1.8
 opentracing==2.4.0
 packaging==21.3
+pkg_resources==0.0.0
 protobuf==3.19.4
 psycopg2-binary==2.9.3
 pyasn1==0.4.8
